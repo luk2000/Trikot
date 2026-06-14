@@ -17,6 +17,15 @@ Umstellung des Viewers von WebGL2-only auf **WebGPU mit WebGL2-Fallback**.
 3. **Renderer-Anzeige**: `showRendererBadge()` zeigt oben links kurz `Renderer: WebGPU`
    bzw. `Renderer: WebGL2` an (mobil ohne DevTools sichtbar). Zusätzlich `console.log`.
 
+### Wichtige Engine-2.19-Stolpersteine (per Testlauf gefunden)
+
+- **`pc.TextureHandler` muss registriert sein** — `.sog`-Splats laden intern mehrere
+  `.webp`-Sub-Texturen. Ohne den Handler bleiben sie ohne Ressource → kein Splat.
+- **`gsplat`-Component mit `unified: false`** — die neue Engine rendert Splats per Default
+  über das „unified gsplat"-System, das die klassische `instance.meshInstance.aabb` nicht
+  mehr füllt. Unser Code braucht diese AABB (Kamera-Zentrierung & AR-Platzierung), darum
+  erzwingen wir den klassischen Per-Entity-Pfad.
+
 Der restliche Code (Orbit, Splat-Laden, AR-Platzierung, Rotation) ist **unverändert** —
 `AppBase` hat dieselbe Laufzeit-API wie `Application`.
 
