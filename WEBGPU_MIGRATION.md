@@ -17,6 +17,21 @@ Umstellung des Viewers von WebGL2-only auf **WebGPU mit WebGL2-Fallback**.
 3. **Renderer-Anzeige**: `showRendererBadge()` zeigt oben links kurz `Renderer: WebGPU`
    bzw. `Renderer: WebGL2` an (mobil ohne DevTools sichtbar). Zusätzlich `console.log`.
 
+### WebGPU ↔ AR: gegenseitiger Ausschluss (wichtig!)
+
+WebXR **immersive-AR braucht einen WebGL-Context**. WebGPU + WebXR ist noch
+experimentell (nur Chrome Canary 135+ mit Flags „WebXR/WebGPU Bindings"). Auf
+normalem Handy-Chrome lässt sich mit einem WebGPU-Device **keine AR-Session starten**.
+
+Deshalb wählt der Viewer den Renderer **automatisch**:
+- Gerät kann `immersive-ar` (`navigator.xr.isSessionSupported('immersive-ar')`)
+  → **WebGL2** (AR funktioniert).
+- Sonst → **WebGPU** (bessere Performance, z. B. Desktop ohne AR).
+
+Folge: AR-fähige Handys laufen auf WebGL2 (Badge zeigt `WebGL2`), nicht auf WebGPU.
+Das ist aktuell unvermeidbar. Wer WebGPU auf dem Handy erzwingen will, müsste AR
+aufgeben (dann `deviceTypes` fest auf `[WEBGPU, WEBGL2]` setzen).
+
 ### Wichtige Engine-2.19-Stolpersteine (per Testlauf gefunden)
 
 - **`pc.TextureHandler` muss registriert sein** — `.sog`-Splats laden intern mehrere
