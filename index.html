@@ -420,7 +420,8 @@
             pc.GSplatComponentSystem
         ];
         createOptions.resourceHandlers = [
-            pc.GSplatHandler
+            pc.GSplatHandler,
+            pc.TextureHandler /* required: .sog splats load .webp sub-textures */
         ];
 
         const app = new pc.AppBase(canvas);
@@ -792,7 +793,10 @@
 
                 asset.on('load', () => {
                     const splatEntity = new pc.Entity('gaussian-splat');
-                    splatEntity.addComponent('gsplat', { asset: asset });
+                    /* unified:false → classic per-entity instance, so meshInstance.aabb
+                     * (used for camera centering & AR placement) is available. The new
+                     * engine defaults to unified gsplat rendering which omits it. */
+                    splatEntity.addComponent('gsplat', { unified: false, asset: asset });
                     splatEntity.setEulerAngles(180, 0, 0);
                     app.root.addChild(splatEntity);
                     currentSplatEntity = splatEntity;
