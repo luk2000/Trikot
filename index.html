@@ -502,7 +502,7 @@
         /* Cap the device pixel ratio on mobile: full DPR (often 3+) is sharp but very
          * fill-rate heavy for splats; 1.0 looked pixelated. 2.0 is a sharp/fast balance.
          * Lower MOBILE_MAX_PIXEL_RATIO for more speed, raise for more sharpness. */
-        const MOBILE_MAX_PIXEL_RATIO = 2;
+        const MOBILE_MAX_PIXEL_RATIO = 1.5;
         if (isMobile) {
             app.graphicsDevice.maxPixelRatio = Math.min(window.devicePixelRatio || 1, MOBILE_MAX_PIXEL_RATIO);
         }
