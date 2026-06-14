@@ -825,15 +825,34 @@
                         /* Apply the viewer start yaw for display (does not affect AR) */
                         splatEntity.setEulerAngles(180, VIEWER_START_YAW, 0);
 
-                        /* Rotate the snapshotted center by the same yaw so the camera stays
-                         * centered on the object after the rotation. */
-                        const yawQuat = new pc.Quat().setFromAxisAngle(pc.Vec3.UP, VIEWER_START_YAW);
-                        const center = yawQuat.transformVector(splatBaseCenter, new pc.Vec3());
+                        /* Re-read the live AABB after rotation for extents/sizing. */
+                        const liveAabb = (splatEntity.gsplat && splatEntity.gsplat.instance)
+                            ? splatEntity.gsplat.instance.meshInstance.aabb : aabb;
+                        const bboxCenter = liveAabb.center;
+                        const he = liveAabb.halfExtents;
+
+                        /* Frame on the splat CENTROID (mass center), not the AABB center —
+                         * the geometric box center can sit off the visible mass, making an
+                         * asymmetric object (jersey: sleeves/collar) look off-centre. */
+                        let center = bboxCenter;
+                        const inst = splatEntity.gsplat && splatEntity.gsplat.instance;
+                        /* Per-splat centers (local space). The depth sorter keeps this array
+                         * persistently; the raw resource copy may be freed after GPU upload. */
+                        const centers = (inst && inst.sorter && inst.sorter.centers)
+                            || (asset.resource && asset.resource.gsplatData && asset.resource.gsplatData._centers)
+                            || null;
+                        if (centers && centers.length >= 3) {
+                            const n = centers.length / 3;
+                            let mx = 0, my = 0, mz = 0;
+                            for (let i = 0; i < n; i++) { mx += centers[i * 3]; my += centers[i * 3 + 1]; mz += centers[i * 3 + 2]; }
+                            const localCentroid = new pc.Vec3(mx / n, my / n, mz / n);
+                            center = splatEntity.getWorldTransform().transformPoint(localCentroid, new pc.Vec3());
+                        }
 
                         const radius = Math.sqrt(
-                            halfExtents.x * halfExtents.x +
-                            halfExtents.y * halfExtents.y +
-                            halfExtents.z * halfExtents.z
+                            he.x * he.x +
+                            he.y * he.y +
+                            he.z * he.z
                         );
                         /* Zoom out more on portrait/mobile screens so object fits */
                         const aspect = canvas.width / canvas.height;
@@ -848,14 +867,14 @@
                         initialOrbit.yaw = orbit.yaw;
                         initialOrbit.pitch = orbit.pitch;
 
-                        /* Position ground plane and shadow at bottom of splat */
-                        const groundY = center.y - halfExtents.y;
+                        /* Position ground plane and shadow at bottom of splat (under centroid) */
+                        const groundY = bboxCenter.y - he.y;
                         ground.setPosition(center.x, groundY, center.z);
-                        const planeSize = Math.max(halfExtents.x, halfExtents.z) * 2;
+                        const planeSize = Math.max(he.x, he.z) * 2;
                         ground.setLocalScale(planeSize, 1, planeSize);
 
                         shadow.setPosition(center.x, groundY + 0.001, center.z);
-                        const shadowSize = Math.max(halfExtents.x, halfExtents.z) * 2.5;
+                        const shadowSize = Math.max(he.x, he.z) * 2.5;
                         shadow.setLocalScale(shadowSize, 1, shadowSize);
                     }
 
