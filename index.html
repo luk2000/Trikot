@@ -450,14 +450,18 @@
          * WebGPU; when the user enters AR we reload the page with ?ar=1, which forces
          * WebGL2 for that session. → standard view = WebGPU, AR = WebGL2. */
         const arMode = new URLSearchParams(location.search).has('ar');
-        const deviceTypes = arMode
-            ? [pc.DEVICETYPE_WEBGL2]
-            : [pc.DEVICETYPE_WEBGPU, pc.DEVICETYPE_WEBGL2];
-        if (arMode) dbgLog('AR mode → forcing WebGL2 (WebXR needs WebGL)');
 
         /* Disable antialias on mobile — it multiplies fragment cost and splats are
          * fill-rate bound (high overdraw from alpha blending). */
         const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+
+        /* Desktop: use the same WebGL2 rendering as the other splat viewer repo
+         * (WebGPU's unified-gsplat path shows fuzzy edge artifacts on desktop Firefox).
+         * Mobile keeps WebGPU+WebGL2 fallback for the unified-mode performance win. */
+        const deviceTypes = (arMode || !isMobile)
+            ? [pc.DEVICETYPE_WEBGL2]
+            : [pc.DEVICETYPE_WEBGPU, pc.DEVICETYPE_WEBGL2];
+        if (arMode) dbgLog('AR mode → forcing WebGL2 (WebXR needs WebGL)');
 
         let device;
         try {
