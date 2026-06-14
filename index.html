@@ -349,6 +349,10 @@
     /** Desired AR object size: longest side in centimeters */
     const AR_SIZE_CM = 75;
 
+    /** While repositioning in AR the object turns to face the camera.
+     *  If its front/back is flipped, change this to 180 (or 90/270). */
+    const FACE_CAMERA_YAW_OFFSET = 0;
+
     /* ================================================================
      *  APPLICATION INIT
      * ================================================================ */
@@ -949,6 +953,11 @@
                      * bbox BOTTOM edge on the floor so the object STANDS on the point. */
                     const arCenterOffset = new pc.Vec3();
                     let arHalfHeight = 0;
+                    /* Scratch math for "face camera" placement */
+                    const arFlipQuat = new pc.Quat().setFromAxisAngle(pc.Vec3.RIGHT, 180); /* Rx(180) */
+                    const arYawQuat = new pc.Quat();
+                    const arRotQuat = new pc.Quat();
+                    const arOffsetRot = new pc.Vec3();
 
                     /* Show splat immediately in front of camera */
                     if (currentSplatEntity) {
@@ -1001,13 +1010,25 @@
                                     if (!reticle.enabled && !placed) reticle.enabled = true;
                                     if (!placed) {
                                         /* Move object to follow surface in real-time until placed.
-                                         * X/Z: center horizontally on the hit point.
-                                         * Y: put bbox BOTTOM on the floor so the object stands on it. */
+                                         * Turn it to face the camera (yaw about Y), and rotate the
+                                         * center offset by the same yaw so it stays centered/standing
+                                         * on the hit point. X/Z: centered. Y: bbox bottom on floor. */
                                         if (currentSplatEntity) {
+                                            const cam = camera.getPosition();
+                                            const yaw = Math.atan2(cam.x - position.x, cam.z - position.z) * 180 / Math.PI + FACE_CAMERA_YAW_OFFSET;
+
+                                            /* Final orientation = Ry(yaw) * Rx(180), built via quats
+                                             * (order-safe, independent of euler convention) */
+                                            arYawQuat.setFromAxisAngle(pc.Vec3.UP, yaw);
+                                            arRotQuat.mul2(arYawQuat, arFlipQuat);
+                                            currentSplatEntity.setRotation(arRotQuat);
+
+                                            /* Rotate the (yaw=0) center offset by the same yaw */
+                                            arYawQuat.transformVector(arCenterOffset, arOffsetRot);
                                             currentSplatEntity.setPosition(
-                                                position.x - arCenterOffset.x,
-                                                position.y - arCenterOffset.y + arHalfHeight,
-                                                position.z - arCenterOffset.z
+                                                position.x - arOffsetRot.x,
+                                                position.y - arOffsetRot.y + arHalfHeight,
+                                                position.z - arOffsetRot.z
                                             );
                                         }
                                     }
