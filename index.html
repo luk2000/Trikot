@@ -952,7 +952,6 @@
 
                     /* Show splat immediately in front of camera */
                     if (currentSplatEntity) {
-                        currentSplatEntity.setPosition(0, 0, -1);
                         currentSplatEntity.setEulerAngles(180, 0, 0);
                         currentSplatEntity.enabled = true;
 
@@ -965,6 +964,14 @@
                         );
                         arHalfHeight = splatBaseHalf.y * arScale;
                         dbgLog('AR offset: ' + arCenterOffset.x.toFixed(3) + ',' + arCenterOffset.y.toFixed(3) + ',' + arCenterOffset.z.toFixed(3) + ' halfH=' + arHalfHeight.toFixed(3));
+
+                        /* Initial placement: bbox CENTER 1 m in front of camera, offset-corrected,
+                         * so it's visible & centered even before a surface is detected. */
+                        currentSplatEntity.setPosition(
+                            -arCenterOffset.x,
+                            -arCenterOffset.y,
+                            -1 - arCenterOffset.z
+                        );
                     }
 
                     /* Track last hit position for tap-to-place */
