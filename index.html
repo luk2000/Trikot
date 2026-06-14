@@ -521,13 +521,16 @@
         /* Generate radial gradient opacity texture */
         const texSize = 256;
         const texData = new Uint8Array(texSize * texSize * 4);
+        const GROUND_MAX_ALPHA = 0.5; /* peak opacity at center — lower = lighter */
         for (let y = 0; y < texSize; y++) {
             for (let x = 0; x < texSize; x++) {
                 const u = (x / (texSize - 1)) * 2 - 1;
                 const v = (y / (texSize - 1)) * 2 - 1;
-                const dist = Math.sqrt(u * u + v * v);
-                const alpha = Math.max(0, 1 - Math.pow(Math.min(dist, 1), 1.5));
-                const a = Math.round(alpha * 255);
+                const dist = Math.min(Math.sqrt(u * u + v * v), 1);
+                /* smoothstep falloff (1 at center → 0 at edge) for a soft, gradual fade */
+                const t = 1 - dist;
+                const smooth = t * t * (3 - 2 * t);
+                const a = Math.round(smooth * GROUND_MAX_ALPHA * 255);
                 const i = (y * texSize + x) * 4;
                 texData[i] = 255; texData[i+1] = 255; texData[i+2] = 255; texData[i+3] = a;
             }
