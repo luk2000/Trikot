@@ -389,18 +389,15 @@
         /* ── Create graphics device: prefer WebGPU, fall back to WebGL2 ──
          * (Replaces the legacy `new pc.Application()` which is WebGL2-only.)
          * No glslang/twgsl URLs needed: we use only engine built-in shaders. */
-        /* WebXR immersive-AR requires a WebGL context — WebGPU + WebXR is still
-         * experimental (Chrome Canary + flags only). So if this device can do AR,
-         * force WebGL2 to keep AR working; otherwise prefer WebGPU for performance. */
-        let deviceTypes = [pc.DEVICETYPE_WEBGPU, pc.DEVICETYPE_WEBGL2];
-        let arSupported = false;
-        if (SHOW_AR_BUTTON && navigator.xr && navigator.xr.isSessionSupported) {
-            try { arSupported = await navigator.xr.isSessionSupported('immersive-ar'); } catch (e) { /* ignore */ }
-        }
-        if (arSupported) {
-            deviceTypes = [pc.DEVICETYPE_WEBGL2];
-            dbgLog('immersive-ar supported → using WebGL2 (WebXR needs WebGL)');
-        }
+        /* WebXR immersive-AR needs a WebGL context (WebGPU + WebXR is still
+         * experimental: Chrome Canary + flags only). Strategy: normal viewing runs on
+         * WebGPU; when the user enters AR we reload the page with ?ar=1, which forces
+         * WebGL2 for that session. → standard view = WebGPU, AR = WebGL2. */
+        const arMode = new URLSearchParams(location.search).has('ar');
+        const deviceTypes = arMode
+            ? [pc.DEVICETYPE_WEBGL2]
+            : [pc.DEVICETYPE_WEBGPU, pc.DEVICETYPE_WEBGL2];
+        if (arMode) dbgLog('AR mode → forcing WebGL2 (WebXR needs WebGL)');
 
         let device;
         try {
@@ -940,6 +937,17 @@
 
                 arBtn.addEventListener('click', () => {
                     dbgLog('AR button clicked');
+
+                    /* On WebGPU we cannot start a WebXR session — reload into AR mode
+                     * (?ar=1) which forces WebGL2, then the user taps AR again to enter. */
+                    if (!arMode && device.isWebGPU) {
+                        dbgLog('WebGPU → reloading into WebGL2 AR mode');
+                        const u = new URL(location.href);
+                        u.searchParams.set('ar', '1');
+                        location.href = u.toString();
+                        return;
+                    }
+
                     if (app.xr.active) {
                         dbgLog('Ending AR session');
                         app.xr.end();

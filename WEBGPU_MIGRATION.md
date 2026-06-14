@@ -23,14 +23,16 @@ WebXR **immersive-AR braucht einen WebGL-Context**. WebGPU + WebXR ist noch
 experimentell (nur Chrome Canary 135+ mit Flags „WebXR/WebGPU Bindings"). Auf
 normalem Handy-Chrome lässt sich mit einem WebGPU-Device **keine AR-Session starten**.
 
-Deshalb wählt der Viewer den Renderer **automatisch**:
-- Gerät kann `immersive-ar` (`navigator.xr.isSessionSupported('immersive-ar')`)
-  → **WebGL2** (AR funktioniert).
-- Sonst → **WebGPU** (bessere Performance, z. B. Desktop ohne AR).
+Da der Grafik-Context **nicht zur Laufzeit umschaltbar** ist, nutzt der Viewer eine
+**Reload-Strategie** (Standardansicht = WebGPU, AR = WebGL2):
 
-Folge: AR-fähige Handys laufen auf WebGL2 (Badge zeigt `WebGL2`), nicht auf WebGPU.
-Das ist aktuell unvermeidbar. Wer WebGPU auf dem Handy erzwingen will, müsste AR
-aufgeben (dann `deviceTypes` fest auf `[WEBGPU, WEBGL2]` setzen).
+- Normaler Aufruf → `deviceTypes = [WEBGPU, WEBGL2]` → WebGPU für die Ansicht.
+- Tipp auf **AR** (solange auf WebGPU): Seite lädt mit `?ar=1` neu.
+- Mit `?ar=1` → `deviceTypes = [WEBGL2]` → WebGL2, dann startet die AR-Session normal.
+  (Der erste Tap löst den Reload aus, der zweite startet AR.)
+
+Erkennung über `arMode = new URLSearchParams(location.search).has('ar')`.
+Der Renderer-Badge zeigt entsprechend `WebGPU` (Ansicht) bzw. `WebGL2` (AR).
 
 ### Wichtige Engine-2.19-Stolpersteine (per Testlauf gefunden)
 
