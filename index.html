@@ -902,36 +902,38 @@
                     app.root.addChild(splatEntity);
                     currentSplatEntity = splatEntity;
 
-                    /* Center camera on splat bounding box */
-                    const aabb = splatEntity.gsplat && splatEntity.gsplat.instance
-                        ? splatEntity.gsplat.instance.meshInstance.aabb
-                        : null;
-                    if (aabb) {
-                        const halfExtents = aabb.halfExtents;
-                        /* Snapshot for AR placement (under Rx(180) only, before the viewer
-                         * start yaw is applied – AR derives its own rotation from this). */
-                        splatBaseCenter.copy(aabb.center);
-                        splatBaseHalf.copy(halfExtents);
+                    /* Apply the viewer start yaw for display */
+                    splatEntity.setEulerAngles(180, VIEWER_START_YAW, 0);
 
-                        /* Apply the viewer start yaw for display (does not affect AR) */
-                        splatEntity.setEulerAngles(180, VIEWER_START_YAW, 0);
-
-                        /* Re-read the live AABB after rotation for extents/sizing. */
-                        const liveAabb = (splatEntity.gsplat && splatEntity.gsplat.instance)
-                            ? splatEntity.gsplat.instance.meshInstance.aabb : aabb;
-                        const bboxCenter = liveAabb.center;
-                        const he = liveAabb.halfExtents;
-
-                        /* Frame on the splat CENTROID (mass center), not the AABB center —
-                         * the geometric box center can sit off the visible mass, making an
-                         * asymmetric object (jersey: sleeves/collar) look off-centre. */
-                        let center = bboxCenter;
+                    /* Center the camera + set the rotation pivot on the splat. Works in both
+                     * the classic and the unified gsplat path:
+                     *  - classic: instance.meshInstance.aabb is already world space
+                     *  - unified: no per-entity instance → read the placement node's local
+                     *    AABB and transform it to world. The AABB can take a frame to fill,
+                     *    so we retry on the next update until it is available. */
+                    function frameSplat() {
+                        let worldBox = null;
                         const inst = splatEntity.gsplat && splatEntity.gsplat.instance;
-                        /* Per-splat centers (local space). The depth sorter keeps this array
-                         * persistently; the raw resource copy may be freed after GPU upload. */
-                        const centers = (inst && inst.sorter && inst.sorter.centers)
-                            || (asset.resource && asset.resource.gsplatData && asset.resource.gsplatData._centers)
-                            || null;
+                        const placement = splatEntity.gsplat && splatEntity.gsplat._placement;
+                        if (inst && inst.meshInstance) {
+                            worldBox = inst.meshInstance.aabb;
+                        } else if (placement && placement.aabb && placement.aabb.halfExtents.length() > 0) {
+                            worldBox = new pc.BoundingBox();
+                            worldBox.setFromTransformedAabb(placement.aabb, splatEntity.getWorldTransform());
+                        }
+                        if (!worldBox) { app.once('update', frameSplat); return; }
+
+                        const bboxCenter = worldBox.center;
+                        const he = worldBox.halfExtents;
+
+                        /* AR placement snapshot (best-effort) */
+                        splatBaseCenter.copy(bboxCenter);
+                        splatBaseHalf.copy(he);
+
+                        /* Frame on the splat CENTROID when per-splat centers exist (classic
+                         * sorter); the unified path has no CPU centers → use the bbox center. */
+                        let center = bboxCenter;
+                        const centers = (inst && inst.sorter && inst.sorter.centers) || null;
                         if (centers && centers.length >= 3) {
                             const n = centers.length / 3;
                             let mx = 0, my = 0, mz = 0;
@@ -940,12 +942,7 @@
                             center = splatEntity.getWorldTransform().transformPoint(localCentroid, new pc.Vec3());
                         }
 
-                        const radius = Math.sqrt(
-                            he.x * he.x +
-                            he.y * he.y +
-                            he.z * he.z
-                        );
-                        /* Zoom out more on portrait/mobile screens so object fits */
+                        const radius = Math.sqrt(he.x * he.x + he.y * he.y + he.z * he.z);
                         const aspect = canvas.width / canvas.height;
                         const distMul = aspect < 1 ? 3.5 : 2.5;
                         const dist = radius * distMul;
@@ -958,17 +955,16 @@
                         initialOrbit.yaw = orbit.yaw;
                         initialOrbit.pitch = orbit.pitch;
 
-                        /* Position ground plane and shadow below the splat bottom, with a
-                         * gap so the object appears to float above the ground (under centroid) */
+                        /* Ground/shadow below the splat bottom, with a float gap */
                         const groundY = bboxCenter.y - he.y - he.y * FLOAT_GAP;
                         ground.setPosition(center.x, groundY, center.z);
                         const planeSize = Math.max(he.x, he.z) * 1.3;
                         ground.setLocalScale(planeSize, 1, planeSize);
-
                         shadow.setPosition(center.x, groundY + 0.001, center.z);
                         const shadowSize = Math.max(he.x, he.z) * 2.5;
                         shadow.setLocalScale(shadowSize, 1, shadowSize);
                     }
+                    frameSplat();
 
                     /* Show 100% before hiding */
                     bar.style.width = '100%';
