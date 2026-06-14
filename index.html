@@ -18,6 +18,19 @@
             width: 100%;
             height: 100%;
             display: block;
+            position: relative;
+            z-index: 1;
+        }
+
+        /* Optional background logo (watermark) behind the splat */
+        #bg-logo {
+            position: fixed;
+            inset: 0;
+            z-index: 0;
+            background-repeat: no-repeat;
+            background-position: center;
+            pointer-events: none;
+            display: none;
         }
 
         /* ── Loading Screen ── */
@@ -236,6 +249,7 @@
     </style>
 </head>
 <body>
+    <div id="bg-logo"></div>
     <canvas id="app-canvas"></canvas>
 
     <!-- Loading Screen -->
@@ -344,6 +358,16 @@
     /** Background color when TRANSPARENT_BG is false (r, g, b) 0-1 range */
     const BG_COLOR = [1, 1, 1];
 
+    /** Optional background logo behind the splat. Put your own image file next to
+     *  index.html and set its path here (e.g. './fck_logo.png'). Empty = no logo.
+     *  NOTE: use only artwork you have the rights to (club logos are trademarks). */
+    const BG_LOGO_URL = './fck_logo.png';
+    const BG_LOGO_SIZE = '40%';   /* width relative to viewport (CSS background-size) */
+    const BG_LOGO_OPACITY = 0.12; /* 0–1, how subtle the watermark is */
+    const USE_BG_LOGO = !!(BG_LOGO_URL && BG_LOGO_URL.length);
+    /** Canvas needs a transparent clear so a background logo can show through */
+    const TRANSPARENT_CANVAS = TRANSPARENT_BG || USE_BG_LOGO;
+
     /** Orbit damping factor – lower = smoother/slower (0-1) */
     const DAMPING = 0.08;
 
@@ -390,6 +414,15 @@
         const shadowBtn = document.getElementById('shadow-btn');
         const arBtn    = document.getElementById('ar-btn');
 
+        /* ── Optional background logo (watermark behind the splat) ── */
+        if (USE_BG_LOGO) {
+            const bgLogo = document.getElementById('bg-logo');
+            bgLogo.style.backgroundImage = 'url("' + BG_LOGO_URL + '")';
+            bgLogo.style.backgroundSize = BG_LOGO_SIZE + ' auto';
+            bgLogo.style.opacity = String(BG_LOGO_OPACITY);
+            bgLogo.style.display = 'block';
+        }
+
         /* ── Create graphics device: prefer WebGPU, fall back to WebGL2 ──
          * (Replaces the legacy `new pc.Application()` which is WebGL2-only.)
          * No glslang/twgsl URLs needed: we use only engine built-in shaders. */
@@ -408,7 +441,7 @@
             device = await pc.createGraphicsDevice(canvas, {
                 deviceTypes: deviceTypes,
                 antialias: true,
-                alpha: TRANSPARENT_BG
+                alpha: TRANSPARENT_CANVAS
             });
         } catch (e) {
             console.error('[Renderer] createGraphicsDevice failed:', e);
@@ -452,7 +485,7 @@
         /* ── Camera entity ── */
         const camera = new pc.Entity('camera');
         camera.addComponent('camera', {
-            clearColor: TRANSPARENT_BG
+            clearColor: TRANSPARENT_CANVAS
                 ? new pc.Color(0, 0, 0, 0)
                 : new pc.Color(BG_COLOR[0], BG_COLOR[1], BG_COLOR[2], 1),
             farClip: 1000
