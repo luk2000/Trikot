@@ -1,0 +1,1112 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>FCK Trikot – Gaussian Splat Viewer</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        html, body {
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background: #fff;
+        }
+
+        #app-canvas {
+            width: 100%;
+            height: 100%;
+            display: block;
+        }
+
+        /* ── Loading Screen ── */
+        #loading-screen {
+            position: fixed;
+            inset: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            background: rgba(18, 18, 24, 0.95);
+            z-index: 100;
+            transition: opacity 0.6s ease;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            color: #e0e0e0;
+        }
+        #loading-screen.hidden {
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        #loading-title {
+            font-size: 18px;
+            font-weight: 500;
+            margin-bottom: 24px;
+            letter-spacing: 0.5px;
+        }
+
+        #progress-bar-container {
+            width: 260px;
+            height: 4px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 2px;
+            overflow: hidden;
+        }
+
+        #progress-bar {
+            height: 100%;
+            width: 0%;
+            background: linear-gradient(90deg, #6c8cff, #a78bfa);
+            border-radius: 2px;
+            transition: width 0.2s ease;
+        }
+
+        #progress-text {
+            margin-top: 12px;
+            font-size: 13px;
+            color: #888;
+        }
+
+        #error-message {
+            display: none;
+            color: #ff6b6b;
+            font-size: 14px;
+            text-align: center;
+            max-width: 400px;
+            line-height: 1.5;
+        }
+
+        /* ── UI Hint ── */
+        #hint {
+            position: fixed;
+            bottom: 24px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            font-size: 13px;
+            color: rgba(255, 255, 255, 0.6);
+            background: rgba(0, 0, 0, 0.45);
+            padding: 8px 16px;
+            border-radius: 20px;
+            pointer-events: none;
+            z-index: 50;
+            opacity: 0;
+            transition: opacity 0.5s ease;
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+        }
+        #hint.visible { opacity: 1; }
+
+        /* ── Reset Camera Button ── */
+        #reset-btn {
+            position: fixed;
+            bottom: 16px;
+            right: 16px;
+            width: 36px;
+            height: 36px;
+            border: none;
+            border-radius: 8px;
+            background: rgba(0, 0, 0, 0.4);
+            color: rgba(255, 255, 255, 0.7);
+            font-size: 18px;
+            cursor: pointer;
+            z-index: 50;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+            transition: background 0.2s, color 0.2s;
+        }
+        #reset-btn:hover, #plane-btn:hover {
+            background: rgba(0, 0, 0, 0.6);
+            color: #fff;
+        }
+
+        /* ── Ground Plane Toggle ── */
+        #plane-btn {
+            position: fixed;
+            bottom: 16px;
+            right: 60px;
+            width: 36px;
+            height: 36px;
+            border: none;
+            border-radius: 8px;
+            background: rgba(0, 0, 0, 0.4);
+            color: rgba(255, 255, 255, 0.7);
+            font-size: 15px;
+            cursor: pointer;
+            z-index: 50;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+            transition: background 0.2s, color 0.2s;
+        }
+        #plane-btn.active, #shadow-btn.active {
+            background: rgba(100, 130, 255, 0.4);
+            color: #fff;
+        }
+
+        /* ── Shadow Toggle ── */
+        #shadow-btn {
+            position: fixed;
+            bottom: 16px;
+            right: 104px;
+            width: 36px;
+            height: 36px;
+            border: none;
+            border-radius: 8px;
+            background: rgba(0, 0, 0, 0.4);
+            color: rgba(255, 255, 255, 0.7);
+            font-size: 15px;
+            cursor: pointer;
+            z-index: 50;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+            transition: background 0.2s, color 0.2s;
+        }
+        #shadow-btn:hover {
+            background: rgba(0, 0, 0, 0.6);
+            color: #fff;
+        }
+
+        /* ── AR Button ── */
+        #ar-btn {
+            position: fixed;
+            bottom: 16px;
+            right: 148px;
+            height: 36px;
+            padding: 0 14px;
+            border: none;
+            border-radius: 8px;
+            background: rgba(0, 0, 0, 0.4);
+            color: rgba(255, 255, 255, 0.7);
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            font-size: 13px;
+            font-weight: 500;
+            cursor: pointer;
+            z-index: 50;
+            display: none;
+            align-items: center;
+            gap: 6px;
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+            transition: background 0.2s, color 0.2s;
+        }
+        #ar-btn:hover {
+            background: rgba(0, 0, 0, 0.6);
+            color: #fff;
+        }
+        #ar-btn.active {
+            background: rgba(100, 130, 255, 0.4);
+            color: #fff;
+        }
+
+        /* ── Splat Selector ── */
+        #splat-selector {
+            position: fixed;
+            top: 16px;
+            left: 16px;
+            z-index: 50;
+            display: none;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        }
+        #splat-selector select {
+            background: rgba(0, 0, 0, 0.5);
+            color: #e0e0e0;
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            border-radius: 8px;
+            padding: 8px 12px;
+            font-size: 13px;
+            cursor: pointer;
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+            outline: none;
+            transition: background 0.2s;
+        }
+        #splat-selector select:hover {
+            background: rgba(0, 0, 0, 0.7);
+        }
+    </style>
+</head>
+<body>
+    <canvas id="app-canvas"></canvas>
+
+    <!-- Loading Screen -->
+    <div id="loading-screen">
+        <div id="loading-title">Loading scene…</div>
+        <div id="progress-bar-container">
+            <div id="progress-bar"></div>
+        </div>
+        <div id="progress-text">0 %</div>
+        <div id="error-message"></div>
+    </div>
+
+    <!-- DOM Overlay container for WebXR AR (keeps UI visible in AR) -->
+    <div id="ar-overlay" style="position:fixed;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:9999;">
+        <!-- Debug Overlay -->
+        <div id="debug" style="position:fixed;top:50px;left:10px;right:10px;max-height:40%;overflow-y:auto;background:rgba(0,0,0,0.85);color:#0f0;font:12px monospace;padding:10px;border-radius:8px;z-index:99999;display:none;white-space:pre-wrap;word-break:break-all;pointer-events:auto;"></div>
+        <!-- AR instruction text -->
+        <div id="ar-instruction" style="display:none;position:fixed;top:40px;left:50%;transform:translateX(-50%);padding:10px 20px;font-size:15px;background:rgba(0,0,0,0.6);color:#fff;border-radius:10px;z-index:99999;pointer-events:none;font-family:system-ui,sans-serif;text-align:center;">Tap to place object</div>
+        <!-- AR crosshair reticle (screen-center) -->
+        <div id="ar-reticle" style="display:none;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);width:40px;height:40px;z-index:99999;pointer-events:none;">
+            <svg width="40" height="40" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <circle cx="20" cy="20" r="14" stroke="white" stroke-width="2" opacity="0.8"/>
+                <circle cx="20" cy="20" r="2" fill="white" opacity="0.9"/>
+                <line x1="20" y1="2" x2="20" y2="10" stroke="white" stroke-width="1.5" opacity="0.5"/>
+                <line x1="20" y1="30" x2="20" y2="38" stroke="white" stroke-width="1.5" opacity="0.5"/>
+                <line x1="2" y1="20" x2="10" y2="20" stroke="white" stroke-width="1.5" opacity="0.5"/>
+                <line x1="30" y1="20" x2="38" y2="20" stroke="white" stroke-width="1.5" opacity="0.5"/>
+            </svg>
+        </div>
+        <!-- AR exit button (visible in AR) -->
+        <button id="ar-exit-btn" style="display:none;position:fixed;bottom:30px;left:50%;transform:translateX(-50%);padding:14px 28px;font-size:16px;background:rgba(0,0,0,0.7);color:#fff;border:2px solid #fff;border-radius:12px;z-index:99999;pointer-events:auto;">Exit AR</button>
+    </div>
+
+    <!-- Interaction Hint -->
+    <div id="hint">drag to rotate · scroll to zoom · right-drag to pan</div>
+
+    <!-- Splat Selector -->
+    <div id="splat-selector"><select id="splat-select"></select></div>
+
+    <!-- AR Button -->
+    <button id="ar-btn" title="View in AR">AR</button>
+
+    <!-- Shadow Toggle -->
+    <button id="shadow-btn" title="Toggle shadow">●</button>
+
+    <!-- Ground Plane Toggle -->
+    <button id="plane-btn" class="active" title="Toggle ground plane">⬚</button>
+
+    <!-- Reset Camera -->
+    <button id="reset-btn" title="Reset camera">⟲</button>
+    <script>
+    const dbg = document.getElementById('debug');
+    const DEBUG = false;
+    function dbgLog(msg) {
+        if (!DEBUG) return;
+        dbg.style.display = 'block';
+        dbg.textContent += msg + '\n';
+        dbg.scrollTop = dbg.scrollHeight;
+    }
+    window.onerror = (m,s,l,c,e) => dbgLog('ERR: ' + m);
+    window.addEventListener('unhandledrejection', e => dbgLog('REJECT: ' + e.reason));
+
+    /* Global tap/click detection for debug */
+    window.addEventListener('touchstart', (e) => dbgLog('TOUCH START on: ' + e.target.tagName + '#' + (e.target.id || '')), true);
+    window.addEventListener('touchend', (e) => dbgLog('TOUCH END on: ' + e.target.tagName + '#' + (e.target.id || '')), true);
+    window.addEventListener('click', (e) => dbgLog('CLICK on: ' + e.target.tagName + '#' + (e.target.id || '')), true);
+    </script>
+
+    <!-- PlayCanvas Engine -->
+    <script src="https://cdn.jsdelivr.net/npm/playcanvas@2.17.0/build/playcanvas.js"></script>
+
+    <script>
+    /* ================================================================
+     *  USER CONFIGURATION – edit these values to customize the viewer
+     * ================================================================ */
+
+    /** List of available splat files – add entries here to populate the selector */
+    const SPLAT_FILES = [
+        { label: 'FCK Trikot', url: './Splat/Trikot.sog' },
+    ];
+
+    /** Initial camera position [x, y, z] */
+    const CAMERA_START_POS = [0, 1, 5];
+
+    /** Point the camera looks at [x, y, z] */
+    const CAMERA_LOOK_AT = [0, 0, 0];
+
+    /** If true, the canvas background is transparent (Wix page shows through) */
+    const TRANSPARENT_BG = false;
+
+    /** Background color when TRANSPARENT_BG is false (r, g, b) 0-1 range */
+    const BG_COLOR = [1, 1, 1];
+
+    /** Orbit damping factor – lower = smoother/slower (0-1) */
+    const DAMPING = 0.08;
+
+    /** Zoom speed multiplier */
+    const ZOOM_SPEED = 0.002;
+
+    /** Minimum / maximum camera distance */
+    const MIN_DISTANCE = 0.5;
+    const MAX_DISTANCE = 50;
+
+    /** Auto-rotate speed in degrees per second (0 to disable) */
+    const AUTO_ROTATE_SPEED = 15;
+
+    /** Show AR button (requires WebXR-capable device) */
+    const SHOW_AR_BUTTON = true;
+
+    /** Desired AR object size: longest side in centimeters */
+    const AR_SIZE_CM = 30;
+
+    /* ================================================================
+     *  APPLICATION INIT
+     * ================================================================ */
+    (async function main() {
+        const canvas  = document.getElementById('app-canvas');
+        const loading = document.getElementById('loading-screen');
+        const bar     = document.getElementById('progress-bar');
+        const pctText = document.getElementById('progress-text');
+        const errEl   = document.getElementById('error-message');
+        const hint    = document.getElementById('hint');
+        const resetBtn = document.getElementById('reset-btn');
+        const planeBtn = document.getElementById('plane-btn');
+        const shadowBtn = document.getElementById('shadow-btn');
+        const arBtn    = document.getElementById('ar-btn');
+
+        /* ── Create PlayCanvas application ── */
+        const app = new pc.Application(canvas, {
+            graphicsDeviceOptions: {
+                alpha: TRANSPARENT_BG,
+                antialias: true
+            },
+            mouse: new pc.Mouse(canvas),
+            touch: 'ontouchstart' in window ? new pc.TouchDevice(canvas) : null
+        });
+
+        app.setCanvasFillMode(pc.FILLMODE_FILL_WINDOW);
+        app.setCanvasResolution(pc.RESOLUTION_AUTO);
+        const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+        if (isMobile) app.graphicsDevice.maxPixelRatio = 1.0;
+        app.start();
+
+        window.addEventListener('resize', () => app.resizeCanvas());
+
+        /* ── Camera entity ── */
+        const camera = new pc.Entity('camera');
+        camera.addComponent('camera', {
+            clearColor: TRANSPARENT_BG
+                ? new pc.Color(0, 0, 0, 0)
+                : new pc.Color(BG_COLOR[0], BG_COLOR[1], BG_COLOR[2], 1),
+            farClip: 1000
+        });
+        app.root.addChild(camera);
+
+        /* ── Ambient light (subtle fill so splats are visible) ── */
+        const light = new pc.Entity('light');
+        light.addComponent('light', {
+            type: 'directional',
+            color: new pc.Color(1, 1, 1),
+            intensity: 1
+        });
+        light.setEulerAngles(45, 30, 0);
+        app.root.addChild(light);
+
+        /* ── Ground plane ── */
+        const ground = new pc.Entity('ground-plane');
+        ground.addComponent('render', { type: 'plane' });
+        ground.setLocalScale(10, 1, 10);
+        ground.setPosition(0, 0, 0);
+
+        /* Create a semi-transparent material for the ground */
+        /* Generate radial gradient opacity texture */
+        const texSize = 256;
+        const texData = new Uint8Array(texSize * texSize * 4);
+        for (let y = 0; y < texSize; y++) {
+            for (let x = 0; x < texSize; x++) {
+                const u = (x / (texSize - 1)) * 2 - 1;
+                const v = (y / (texSize - 1)) * 2 - 1;
+                const dist = Math.sqrt(u * u + v * v);
+                const alpha = Math.max(0, 1 - Math.pow(Math.min(dist, 1), 1.5));
+                const a = Math.round(alpha * 255);
+                const i = (y * texSize + x) * 4;
+                texData[i] = 255; texData[i+1] = 255; texData[i+2] = 255; texData[i+3] = a;
+            }
+        }
+        const opacityTex = new pc.Texture(app.graphicsDevice, {
+            width: texSize, height: texSize,
+            format: pc.PIXELFORMAT_RGBA8,
+            addressU: pc.ADDRESS_CLAMP_TO_EDGE,
+            addressV: pc.ADDRESS_CLAMP_TO_EDGE,
+            minFilter: pc.FILTER_LINEAR,
+            magFilter: pc.FILTER_LINEAR
+        });
+        opacityTex.lock().set(texData);
+        opacityTex.unlock();
+
+        const groundMat = new pc.StandardMaterial();
+        groundMat.diffuse = new pc.Color(0.25, 0.25, 0.28);
+        groundMat.opacityMap = opacityTex;
+        groundMat.opacityMapChannel = 'a';
+        groundMat.blendType = pc.BLEND_NORMAL;
+        groundMat.depthWrite = false;
+        groundMat.cull = pc.CULLFACE_NONE;
+        groundMat.update();
+        ground.render.meshInstances[0].material = groundMat;
+
+        app.root.addChild(ground);
+
+        /* ── Shadow blob plane ── */
+        const shadow = new pc.Entity('shadow-plane');
+        shadow.addComponent('render', { type: 'plane' });
+        shadow.setLocalScale(3, 1, 3);
+        shadow.setPosition(0, 0.001, 0);
+
+        /* Soft circular shadow texture */
+        const shTexSize = 256;
+        const shTexData = new Uint8Array(shTexSize * shTexSize * 4);
+        for (let y = 0; y < shTexSize; y++) {
+            for (let x = 0; x < shTexSize; x++) {
+                const u = (x / (shTexSize - 1)) * 2 - 1;
+                const v = (y / (shTexSize - 1)) * 2 - 1;
+                const dist = Math.sqrt(u * u + v * v);
+                const alpha = Math.max(0, 1 - Math.pow(Math.min(dist, 1), 1.2));
+                const i = (y * shTexSize + x) * 4;
+                shTexData[i] = 0; shTexData[i+1] = 0; shTexData[i+2] = 0;
+                shTexData[i+3] = Math.round(alpha * 160);
+            }
+        }
+        const shadowTex = new pc.Texture(app.graphicsDevice, {
+            width: shTexSize, height: shTexSize,
+            format: pc.PIXELFORMAT_RGBA8,
+            addressU: pc.ADDRESS_CLAMP_TO_EDGE,
+            addressV: pc.ADDRESS_CLAMP_TO_EDGE,
+            minFilter: pc.FILTER_LINEAR,
+            magFilter: pc.FILTER_LINEAR
+        });
+        shadowTex.lock().set(shTexData);
+        shadowTex.unlock();
+
+        const shadowMat = new pc.StandardMaterial();
+        shadowMat.diffuse = new pc.Color(0, 0, 0);
+        shadowMat.opacityMap = shadowTex;
+        shadowMat.opacityMapChannel = 'a';
+        shadowMat.blendType = pc.BLEND_NORMAL;
+        shadowMat.depthWrite = false;
+        shadowMat.cull = pc.CULLFACE_NONE;
+        shadowMat.update();
+        shadow.render.meshInstances[0].material = shadowMat;
+
+        shadow.enabled = false;
+        app.root.addChild(shadow);
+
+        /* Toggle shadow */
+        shadowBtn.addEventListener('click', () => {
+            shadow.enabled = !shadow.enabled;
+            shadowBtn.classList.toggle('active');
+        });
+
+        /* Toggle ground plane */
+        planeBtn.addEventListener('click', () => {
+            ground.enabled = !ground.enabled;
+            planeBtn.classList.toggle('active');
+        });
+
+        /* ================================================================
+         *  ORBIT CAMERA CONTROLLER
+         * ================================================================ */
+        const orbit = {
+            /* Target values (changed by user input) */
+            targetYaw:      0,
+            targetPitch:    -15,
+            targetDistance:  vecLength(CAMERA_START_POS, CAMERA_LOOK_AT),
+            targetLookAt:   new pc.Vec3(CAMERA_LOOK_AT[0], CAMERA_LOOK_AT[1], CAMERA_LOOK_AT[2]),
+
+            /* Current values (lerped toward targets) */
+            yaw:      0,
+            pitch:    -15,
+            distance: vecLength(CAMERA_START_POS, CAMERA_LOOK_AT),
+            lookAt:   new pc.Vec3(CAMERA_LOOK_AT[0], CAMERA_LOOK_AT[1], CAMERA_LOOK_AT[2]),
+
+            /* Internal state */
+            dragging: false,
+            panning:  false,
+            lastX: 0,
+            lastY: 0
+        };
+
+        /* Compute initial yaw/pitch from CAMERA_START_POS relative to CAMERA_LOOK_AT */
+        (function initOrbitAngles() {
+            const dx = CAMERA_START_POS[0] - CAMERA_LOOK_AT[0];
+            const dy = CAMERA_START_POS[1] - CAMERA_LOOK_AT[1];
+            const dz = CAMERA_START_POS[2] - CAMERA_LOOK_AT[2];
+            const dist = Math.sqrt(dx*dx + dy*dy + dz*dz);
+            orbit.targetPitch = orbit.pitch = Math.asin(dy / dist) * (180 / Math.PI);
+            orbit.targetYaw   = orbit.yaw   = Math.atan2(dx, dz) * (180 / Math.PI);
+            orbit.targetDistance = orbit.distance = dist;
+        })();
+
+        function vecLength(a, b) {
+            const dx = a[0]-b[0], dy = a[1]-b[1], dz = a[2]-b[2];
+            return Math.sqrt(dx*dx + dy*dy + dz*dz);
+        }
+
+        /* ── Mouse events ── */
+        canvas.addEventListener('pointerdown', (e) => {
+            if (e.button === 0) { orbit.dragging = true; }
+            if (e.button === 2) { orbit.panning = true; }
+            orbit.lastX = e.clientX;
+            orbit.lastY = e.clientY;
+            canvas.setPointerCapture(e.pointerId);
+        });
+
+        canvas.addEventListener('pointermove', (e) => {
+            const dx = e.clientX - orbit.lastX;
+            const dy = e.clientY - orbit.lastY;
+            orbit.lastX = e.clientX;
+            orbit.lastY = e.clientY;
+
+            if (orbit.dragging) {
+                orbit.targetYaw   -= dx * 0.3;
+                orbit.targetPitch += dy * 0.3;
+                orbit.targetPitch = Math.max(0, Math.min(89, orbit.targetPitch));
+            }
+            if (orbit.panning) {
+                const panSpeed = orbit.distance * 0.002;
+                const right = new pc.Vec3();
+                const up    = new pc.Vec3();
+                camera.getWorldTransform().getX(right);
+                camera.getWorldTransform().getY(up);
+                orbit.targetLookAt.sub(right.mulScalar(dx * panSpeed));
+                orbit.targetLookAt.add(up.mulScalar(dy * panSpeed));
+            }
+        });
+
+        canvas.addEventListener('pointerup', (e) => {
+            orbit.dragging = false;
+            orbit.panning  = false;
+        });
+
+        canvas.addEventListener('wheel', (e) => {
+            e.preventDefault();
+            orbit.targetDistance *= 1 + e.deltaY * ZOOM_SPEED;
+            orbit.targetDistance = Math.max(MIN_DISTANCE, Math.min(MAX_DISTANCE, orbit.targetDistance));
+        }, { passive: false });
+
+        canvas.addEventListener('contextmenu', (e) => e.preventDefault());
+
+        /* ── Touch events (pinch zoom) ── */
+        let lastPinchDist = 0;
+        canvas.addEventListener('touchstart', (e) => {
+            if (e.touches.length === 2) {
+                const t = e.touches;
+                lastPinchDist = Math.hypot(t[0].clientX - t[1].clientX, t[0].clientY - t[1].clientY);
+            }
+        }, { passive: true });
+
+        canvas.addEventListener('touchmove', (e) => {
+            if (e.touches.length === 2) {
+                const t = e.touches;
+                const dist = Math.hypot(t[0].clientX - t[1].clientX, t[0].clientY - t[1].clientY);
+                const delta = lastPinchDist - dist;
+                orbit.targetDistance *= 1 + delta * 0.005;
+                orbit.targetDistance = Math.max(MIN_DISTANCE, Math.min(MAX_DISTANCE, orbit.targetDistance));
+                lastPinchDist = dist;
+            }
+        }, { passive: true });
+
+        /* ── Update loop ── */
+        /* Auto-rotate stops on any user interaction */
+        let autoRotate = AUTO_ROTATE_SPEED > 0;
+        function stopAutoRotate() { autoRotate = false; }
+        canvas.addEventListener('pointerdown', stopAutoRotate);
+        canvas.addEventListener('wheel', stopAutoRotate);
+        canvas.addEventListener('touchstart', stopAutoRotate);
+
+        app.on('update', (dt) => {
+            /* Skip orbit controls entirely during AR — XR controls the camera */
+            if (app.xr && app.xr.active) return;
+
+            if (autoRotate) {
+                orbit.targetYaw -= AUTO_ROTATE_SPEED * dt;
+                orbit.yaw = orbit.targetYaw;
+            }
+
+            const d = 1 - Math.pow(1 - DAMPING, dt * 60);
+
+            orbit.yaw      += (orbit.targetYaw - orbit.yaw) * d;
+            orbit.pitch     += (orbit.targetPitch - orbit.pitch) * d;
+            orbit.distance  += (orbit.targetDistance - orbit.distance) * d;
+            orbit.lookAt.lerp(orbit.lookAt, orbit.targetLookAt, d);
+
+            const rad = Math.PI / 180;
+            const cy  = Math.cos(orbit.pitch * rad);
+            const x   = orbit.distance * cy * Math.sin(orbit.yaw * rad);
+            const y   = orbit.distance * Math.sin(orbit.pitch * rad);
+            const z   = orbit.distance * cy * Math.cos(orbit.yaw * rad);
+
+            camera.setPosition(
+                orbit.lookAt.x + x,
+                orbit.lookAt.y + y,
+                orbit.lookAt.z + z
+            );
+            camera.lookAt(orbit.lookAt);
+        });
+
+        /* ── Reset camera (uses initial values, updated after splat loads) ── */
+        const initialOrbit = { yaw: orbit.yaw, pitch: orbit.pitch, distance: orbit.distance, lookAt: orbit.lookAt.clone() };
+        function resetCamera() {
+            orbit.targetYaw = initialOrbit.yaw;
+            orbit.targetPitch = initialOrbit.pitch;
+            orbit.targetDistance = initialOrbit.distance;
+            orbit.targetLookAt.copy(initialOrbit.lookAt);
+        }
+        resetBtn.addEventListener('click', resetCamera);
+
+        /* ================================================================
+         *  SPLAT SELECTOR
+         * ================================================================ */
+        const splatSelect = document.getElementById('splat-select');
+        const selectorDiv = document.getElementById('splat-selector');
+
+        /* Populate dropdown */
+        SPLAT_FILES.forEach((file, i) => {
+            const opt = document.createElement('option');
+            opt.value = i;
+            opt.textContent = file.label;
+            splatSelect.appendChild(opt);
+        });
+
+        /* Show selector only if there are multiple splats */
+        if (SPLAT_FILES.length > 1) {
+            selectorDiv.style.display = 'block';
+        }
+
+        /* ================================================================
+         *  LOAD GAUSSIAN SPLAT
+         * ================================================================ */
+        let currentSplatEntity = null;
+        let currentAsset = null;
+        let firstLoad = true;
+
+        function showError(msg) {
+            document.getElementById('loading-title').style.display = 'none';
+            document.getElementById('progress-bar-container').style.display = 'none';
+            pctText.style.display = 'none';
+            errEl.style.display = 'block';
+            errEl.textContent = msg;
+        }
+
+        function showLoading() {
+            document.getElementById('loading-title').style.display = '';
+            document.getElementById('progress-bar-container').style.display = '';
+            pctText.style.display = '';
+            errEl.style.display = 'none';
+            bar.style.width = '0%';
+            pctText.textContent = '0 %';
+            loading.style.display = 'flex';
+            loading.classList.remove('hidden');
+        }
+
+        function loadSplat(url) {
+            /* Remove previous splat */
+            if (currentSplatEntity) {
+                currentSplatEntity.destroy();
+                currentSplatEntity = null;
+            }
+            if (currentAsset) {
+                app.assets.remove(currentAsset);
+                currentAsset = null;
+            }
+
+            showLoading();
+
+            try {
+                const asset = new pc.Asset('splat-scene-' + Date.now(), 'gsplat', { url: url });
+                currentAsset = asset;
+
+                asset.on('progress', (progress) => {
+                    /* Cap at 90% — the remaining 10% covers parsing/decompression */
+                    const raw = progress > 1 ? progress : progress * 100;
+                    const pct = Math.min(90, Math.round(raw));
+                    bar.style.width = pct + '%';
+                    pctText.textContent = pct + ' %';
+                });
+
+                asset.on('error', (err) => {
+                    console.error('Asset load error:', err);
+                    let msg = 'Failed to load the splat file.';
+                    if (typeof err === 'string' && err.includes('404')) {
+                        msg = 'File not found. Check that the URL points to a valid .ply or .sog file.';
+                    } else if (typeof err === 'string' && (err.includes('CORS') || err.includes('cross-origin'))) {
+                        msg = 'CORS error: the file must be served from the same origin or a CORS-enabled host.';
+                    }
+                    showError(msg);
+                });
+
+                asset.on('load', () => {
+                    const splatEntity = new pc.Entity('gaussian-splat');
+                    splatEntity.addComponent('gsplat', { asset: asset });
+                    splatEntity.setEulerAngles(180, 0, 0);
+                    app.root.addChild(splatEntity);
+                    currentSplatEntity = splatEntity;
+
+                    /* Center camera on splat bounding box */
+                    const aabb = splatEntity.gsplat && splatEntity.gsplat.instance
+                        ? splatEntity.gsplat.instance.meshInstance.aabb
+                        : null;
+                    if (aabb) {
+                        const center = aabb.center;
+                        const halfExtents = aabb.halfExtents;
+                        const radius = Math.sqrt(
+                            halfExtents.x * halfExtents.x +
+                            halfExtents.y * halfExtents.y +
+                            halfExtents.z * halfExtents.z
+                        );
+                        /* Zoom out more on portrait/mobile screens so object fits */
+                        const aspect = canvas.width / canvas.height;
+                        const distMul = aspect < 1 ? 3.5 : 2.5;
+                        const dist = radius * distMul;
+                        orbit.targetLookAt.set(center.x, center.y, center.z);
+                        orbit.lookAt.set(center.x, center.y, center.z);
+                        orbit.targetDistance = dist;
+                        orbit.distance = dist;
+                        initialOrbit.lookAt.copy(orbit.lookAt);
+                        initialOrbit.distance = dist;
+                        initialOrbit.yaw = orbit.yaw;
+                        initialOrbit.pitch = orbit.pitch;
+
+                        /* Position ground plane and shadow at bottom of splat */
+                        const groundY = center.y - halfExtents.y;
+                        ground.setPosition(center.x, groundY, center.z);
+                        const planeSize = Math.max(halfExtents.x, halfExtents.z) * 4;
+                        ground.setLocalScale(planeSize, 1, planeSize);
+
+                        shadow.setPosition(center.x, groundY + 0.001, center.z);
+                        const shadowSize = Math.max(halfExtents.x, halfExtents.z) * 2.5;
+                        shadow.setLocalScale(shadowSize, 1, shadowSize);
+                    }
+
+                    /* Show 100% before hiding */
+                    bar.style.width = '100%';
+                    pctText.textContent = '100 %';
+
+                    /* Re-enable auto-rotate on each load */
+                    autoRotate = AUTO_ROTATE_SPEED > 0;
+
+                    /* Hide loading screen (short delay so user sees 100%) */
+                    setTimeout(() => loading.classList.add('hidden'), 300);
+                    setTimeout(() => { loading.style.display = 'none'; }, 700);
+
+                    resetBtn.style.display = 'flex';
+                    planeBtn.style.display = 'flex';
+                    shadowBtn.style.display = 'flex';
+
+                    if (firstLoad) {
+                        hint.classList.add('visible');
+                        setTimeout(() => hint.classList.remove('visible'), 3000);
+                        firstLoad = false;
+                    }
+                });
+
+                app.assets.add(asset);
+                app.assets.load(asset);
+
+                /* Fallback indeterminate progress */
+                let fakeProgress = 0;
+                const fakeInterval = setInterval(() => {
+                    if (asset.loaded || fakeProgress >= 85) {
+                        clearInterval(fakeInterval);
+                        return;
+                    }
+                    fakeProgress += (85 - fakeProgress) * 0.02;
+                    const current = parseFloat(bar.style.width) || 0;
+                    if (fakeProgress > current) {
+                        bar.style.width = fakeProgress + '%';
+                        pctText.textContent = Math.round(fakeProgress) + ' %';
+                    }
+                }, 100);
+
+            } catch (err) {
+                console.error('Initialization error:', err);
+                showError('Failed to initialize the viewer: ' + err.message);
+            }
+        }
+
+        /* Switch splat on dropdown change */
+        splatSelect.addEventListener('change', () => {
+            loadSplat(SPLAT_FILES[splatSelect.value].url);
+        });
+
+        /* Load first splat */
+        loadSplat(SPLAT_FILES[0].url);
+
+        /* ================================================================
+         *  AR / MIXED REALITY (WebXR)
+         * ================================================================ */
+        dbgLog('XR support: ' + (app.xr ? 'yes' : 'no'));
+        if (app.xr) {
+            dbgLog('AR available: ' + app.xr.isAvailable(pc.XRTYPE_AR));
+            dbgLog('VR available: ' + app.xr.isAvailable(pc.XRTYPE_VR));
+        }
+
+        if (SHOW_AR_BUTTON && app.xr) {
+            let savedClearColor = null;
+            let savedScale = null;
+            let arInitialized = false;
+            let hitTestSource = null;
+            let placed = false;
+
+            function initAR() {
+                if (arInitialized) return;
+                arInitialized = true;
+                dbgLog('Initializing AR handler');
+
+                arBtn.addEventListener('click', () => {
+                    dbgLog('AR button clicked');
+                    if (app.xr.active) {
+                        dbgLog('Ending AR session');
+                        app.xr.end();
+                    } else {
+                        arBtn.textContent = 'Starting…';
+                        dbgLog('Starting AR session...');
+
+                        savedClearColor = camera.camera.clearColor.clone();
+                        camera.camera.clearColor = new pc.Color(0, 0, 0, 0);
+
+                        /* Disable auto-rotate and orbit in AR */
+                        autoRotate = false;
+
+                        ground.enabled = false;
+                        shadow.enabled = false;
+
+                        /* Scale splat to fit AR_SIZE_CM based on bounding box */
+                        if (currentSplatEntity) {
+                            savedScale = currentSplatEntity.getLocalScale().clone();
+                            const arAabb = currentSplatEntity.gsplat && currentSplatEntity.gsplat.instance
+                                ? currentSplatEntity.gsplat.instance.meshInstance.aabb : null;
+                            let arScale = 0.01;
+                            if (arAabb) {
+                                const he = arAabb.halfExtents;
+                                const longestSide = Math.max(he.x, he.y, he.z) * 2; /* full extent in engine units (meters) */
+                                const targetMeters = AR_SIZE_CM / 100;
+                                arScale = targetMeters / longestSide;
+                                dbgLog('AR AABB longest=' + longestSide.toFixed(2) + 'm, scale=' + arScale.toFixed(4));
+                            }
+                            currentSplatEntity.setLocalScale(arScale, arScale, arScale);
+                            currentSplatEntity.setPosition(0, 0, -1);
+                            placed = false;
+                        }
+
+                        /* Set DOM overlay root via PlayCanvas API */
+                        const overlayEl = document.getElementById('ar-overlay');
+                        if (app.xr.domOverlay) {
+                            app.xr.domOverlay.root = overlayEl;
+                            dbgLog('DOM overlay root set');
+                        } else {
+                            dbgLog('No domOverlay API on app.xr');
+                        }
+
+                        app.xr.start(camera.camera, pc.XRTYPE_AR, pc.XRSPACE_LOCALFLOOR, {
+                            callback: (err) => {
+                                if (err) {
+                                    dbgLog('AR FAILED: ' + (err.message || err));
+                                    arBtn.textContent = 'AR';
+                                    if (savedClearColor) {
+                                        camera.camera.clearColor = savedClearColor;
+                                        savedClearColor = null;
+                                    }
+                                    if (savedScale && currentSplatEntity) {
+                                        currentSplatEntity.setLocalScale(savedScale.x, savedScale.y, savedScale.z);
+                                        savedScale = null;
+                                    }
+                                    ground.enabled = planeBtn.classList.contains('active');
+                                    shadow.enabled = shadowBtn.classList.contains('active');
+                                }
+                            }
+                        });
+                    }
+                });
+
+                app.xr.on('start', () => {
+                    dbgLog('AR session STARTED');
+                    const arExitBtn = document.getElementById('ar-exit-btn');
+                    const arReticle = document.getElementById('ar-reticle');
+                    const arInstruction = document.getElementById('ar-instruction');
+                    arExitBtn.style.display = 'block';
+                    arReticle.style.display = 'block';
+                    arInstruction.style.display = 'block';
+                    arExitBtn.onclick = () => app.xr.end();
+                    arBtn.classList.add('active');
+                    arBtn.textContent = 'Tap to place';
+
+                    /* Check if DOM overlay was granted */
+                    const session = app.xr.session;
+                    if (session && session.domOverlayState) {
+                        dbgLog('DOM overlay type: ' + session.domOverlayState.type);
+                    } else {
+                        dbgLog('DOM overlay NOT granted');
+                    }
+
+                    /* Show splat immediately in front of camera */
+                    if (currentSplatEntity) {
+                        currentSplatEntity.setPosition(0, 0, -1);
+                        currentSplatEntity.setEulerAngles(180, 0, 0);
+                        currentSplatEntity.enabled = true;
+                    }
+
+                    /* Track last hit position for tap-to-place */
+                    let lastHitPosition = null;
+
+                    if (app.xr.hitTest && app.xr.hitTest.supported) {
+                        dbgLog('Hit test supported, starting...');
+                        app.xr.hitTest.start({
+                            spaceType: pc.XRSPACE_VIEWER,
+                            callback: (err, source) => {
+                                if (err) {
+                                    dbgLog('Hit test error: ' + err);
+                                    return;
+                                }
+                                hitTestSource = source;
+                                dbgLog('Hit test active');
+
+                                let hitCount = 0;
+                                source.on('result', (position, rotation) => {
+                                    hitCount++;
+                                    if (hitCount <= 3 || hitCount % 60 === 0) {
+                                        dbgLog('Hit #' + hitCount + ' pos: ' + position.x.toFixed(2) + ',' + position.y.toFixed(2) + ',' + position.z.toFixed(2));
+                                    }
+                                    lastHitPosition = position.clone();
+                                    /* Always update reticle */
+                                    reticle.setPosition(position.x, position.y + 0.005, position.z);
+                                    if (!reticle.enabled && !placed) reticle.enabled = true;
+                                    if (!placed) {
+                                        /* Move object to follow surface in real-time until placed */
+                                        if (currentSplatEntity) {
+                                            currentSplatEntity.setPosition(position.x, position.y, position.z);
+                                        }
+                                    }
+                                });
+                            }
+                        });
+                    } else {
+                        dbgLog('Hit test NOT supported');
+                    }
+
+                    /* Create reticle (small ring on the ground showing placement target) */
+                    const reticle = new pc.Entity('reticle');
+                    reticle.addComponent('render', { type: 'plane' });
+                    const reticleMat = new pc.StandardMaterial();
+                    reticleMat.diffuse = new pc.Color(0, 0, 0);
+                    reticleMat.emissive = new pc.Color(1, 1, 1);
+                    reticleMat.opacity = 0.6;
+                    reticleMat.blendType = pc.BLEND_NORMAL;
+                    reticleMat.depthWrite = false;
+                    reticleMat.cull = pc.CULLFACE_NONE;
+
+                    /* Procedural ring texture for reticle */
+                    const rSize = 64;
+                    const rTex = new pc.Texture(app.graphicsDevice, { width: rSize, height: rSize, format: pc.PIXELFORMAT_RGBA8 });
+                    const rPixels = rTex.lock();
+                    for (let y = 0; y < rSize; y++) {
+                        for (let x = 0; x < rSize; x++) {
+                            const dx = x / rSize - 0.5, dy = y / rSize - 0.5;
+                            const dist = Math.sqrt(dx * dx + dy * dy) * 2;
+                            const ring = (dist > 0.7 && dist < 1.0) ? 1.0 : 0.0;
+                            /* Crosshair lines */
+                            const cross = (Math.abs(dx) < 0.02 && dist < 0.7) || (Math.abs(dy) < 0.02 && dist < 0.7) ? 0.5 : 0.0;
+                            const a = Math.max(ring, cross);
+                            const idx = (y * rSize + x) * 4;
+                            rPixels[idx] = 255; rPixels[idx+1] = 255; rPixels[idx+2] = 255; rPixels[idx+3] = Math.round(a * 255);
+                        }
+                    }
+                    rTex.unlock();
+                    reticleMat.opacityMap = rTex;
+                    reticleMat.opacityMapChannel = 'a';
+                    reticleMat.update();
+                    reticle.render.meshInstances[0].material = reticleMat;
+                    reticle.setLocalScale(0.15, 0.15, 0.15);
+                    reticle.enabled = false;
+                    app.root.addChild(reticle);
+
+                    /* Tap to place / unplace toggle */
+                    function onTapToPlace(e) {
+                        dbgLog('Tap detected! placed=' + placed + ' active=' + app.xr.active);
+                        if (!app.xr.active || !currentSplatEntity) return;
+
+                        if (placed) {
+                            /* Unanchor: start following surface again */
+                            placed = false;
+                            reticle.enabled = true;
+                            arReticle.style.display = 'block';
+                            arInstruction.textContent = 'Tap to place object';
+                            arInstruction.style.display = 'block';
+                            dbgLog('Object unanchored, following surface');
+                        } else {
+                            /* Anchor at current position */
+                            placed = true;
+                            reticle.enabled = false;
+                            arReticle.style.display = 'none';
+                            arInstruction.textContent = 'Tap to reposition';
+                            dbgLog('Object anchored');
+                        }
+                    }
+
+                    /* Listen for taps via multiple methods for reliability */
+                    canvas.addEventListener('touchstart', onTapToPlace);
+                    canvas.addEventListener('click', onTapToPlace);
+
+                    /* Also use XR input select event */
+                    function onXrSelect(inputSource) {
+                        dbgLog('XR select event fired');
+                        onTapToPlace();
+                    }
+                    app.xr.input.on('select', onXrSelect);
+
+                    /* Clean up listeners and reticle when AR ends */
+                    app.xr.once('end', () => {
+                        canvas.removeEventListener('touchstart', onTapToPlace);
+                        canvas.removeEventListener('click', onTapToPlace);
+                        app.xr.input.off('select', onXrSelect);
+                        reticle.enabled = false;
+                        reticle.destroy();
+                    });
+                });
+
+                app.xr.on('end', () => {
+                    dbgLog('AR session ENDED');
+                    document.getElementById('ar-exit-btn').style.display = 'none';
+                    document.getElementById('ar-reticle').style.display = 'none';
+                    document.getElementById('ar-instruction').style.display = 'none';
+                    arBtn.classList.remove('active');
+                    arBtn.textContent = 'AR';
+                    placed = false;
+
+                    if (savedClearColor) {
+                        camera.camera.clearColor = savedClearColor;
+                        savedClearColor = null;
+                    }
+                    /* Restore scale and visibility */
+                    if (savedScale && currentSplatEntity) {
+                        currentSplatEntity.enabled = true;
+                        currentSplatEntity.setLocalScale(savedScale.x, savedScale.y, savedScale.z);
+                        currentSplatEntity.setEulerAngles(180, 0, 0);
+                        savedScale = null;
+                    }
+                    if (hitTestSource) {
+                        hitTestSource.remove();
+                        hitTestSource = null;
+                    }
+                    ground.enabled = planeBtn.classList.contains('active');
+                    shadow.enabled = shadowBtn.classList.contains('active');
+                });
+            }
+
+            /* Check immediately */
+            if (app.xr.isAvailable(pc.XRTYPE_AR)) {
+                dbgLog('AR available immediately');
+                arBtn.style.display = 'flex';
+                initAR();
+            }
+
+            /* Also handle late availability */
+            app.xr.on('available:' + pc.XRTYPE_AR, (available) => {
+                dbgLog('AR available event: ' + available);
+                arBtn.style.display = available ? 'flex' : 'none';
+                if (available) initAR();
+            });
+        }
+
+    })();
+    </script>
+</body>
+</html>
