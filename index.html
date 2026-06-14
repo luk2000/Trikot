@@ -678,6 +678,10 @@
         let currentSplatEntity = null;
         let currentAsset = null;
         let firstLoad = true;
+        /* Bounding box of the splat at load time (rotation 180, scale 1, origin 0).
+         * Used to position the object correctly in AR without relying on a live AABB. */
+        const splatBaseCenter = new pc.Vec3();
+        const splatBaseHalf = new pc.Vec3();
 
         function showError(msg) {
             document.getElementById('loading-title').style.display = 'none';
@@ -748,6 +752,9 @@
                     if (aabb) {
                         const center = aabb.center;
                         const halfExtents = aabb.halfExtents;
+                        /* Snapshot for AR placement (aabb is reused/mutated, so copy now) */
+                        splatBaseCenter.copy(center);
+                        splatBaseHalf.copy(halfExtents);
                         const radius = Math.sqrt(
                             halfExtents.x * halfExtents.x +
                             halfExtents.y * halfExtents.y +
@@ -846,6 +853,7 @@
             let arInitialized = false;
             let hitTestSource = null;
             let placed = false;
+            let arScale = 0.01;
 
             function initAR() {
                 if (arInitialized) return;
@@ -873,15 +881,12 @@
                         /* Scale splat to fit AR_SIZE_CM based on bounding box */
                         if (currentSplatEntity) {
                             savedScale = currentSplatEntity.getLocalScale().clone();
-                            const arAabb = currentSplatEntity.gsplat && currentSplatEntity.gsplat.instance
-                                ? currentSplatEntity.gsplat.instance.meshInstance.aabb : null;
-                            let arScale = 0.01;
-                            if (arAabb) {
-                                const he = arAabb.halfExtents;
-                                const longestSide = Math.max(he.x, he.y, he.z) * 2; /* full extent in engine units (meters) */
+                            arScale = 0.01;
+                            const longestSide = Math.max(splatBaseHalf.x, splatBaseHalf.y, splatBaseHalf.z) * 2; /* full extent in engine units (meters) */
+                            if (longestSide > 0) {
                                 const targetMeters = AR_SIZE_CM / 100;
                                 arScale = targetMeters / longestSide;
-                                dbgLog('AR AABB longest=' + longestSide.toFixed(2) + 'm, scale=' + arScale.toFixed(4));
+                                dbgLog('AR base longest=' + longestSide.toFixed(2) + 'm, scale=' + arScale.toFixed(4));
                             }
                             currentSplatEntity.setLocalScale(arScale, arScale, arScale);
                             currentSplatEntity.setPosition(0, 0, -1);
@@ -951,13 +956,15 @@
                         currentSplatEntity.setEulerAngles(180, 0, 0);
                         currentSplatEntity.enabled = true;
 
-                        const arAabb = currentSplatEntity.gsplat && currentSplatEntity.gsplat.instance
-                            ? currentSplatEntity.gsplat.instance.meshInstance.aabb : null;
-                        if (arAabb) {
-                            arCenterOffset.copy(arAabb.center).sub(currentSplatEntity.getPosition());
-                            arHalfHeight = arAabb.halfExtents.y;
-                            dbgLog('AR offset: ' + arCenterOffset.x.toFixed(3) + ',' + arCenterOffset.y.toFixed(3) + ',' + arCenterOffset.z.toFixed(3) + ' halfH=' + arHalfHeight.toFixed(3));
-                        }
+                        /* Derive the world offset from the load-time AABB scaled by arScale.
+                         * (Reading a live gsplat AABB right after a transform change is unreliable.) */
+                        arCenterOffset.set(
+                            splatBaseCenter.x * arScale,
+                            splatBaseCenter.y * arScale,
+                            splatBaseCenter.z * arScale
+                        );
+                        arHalfHeight = splatBaseHalf.y * arScale;
+                        dbgLog('AR offset: ' + arCenterOffset.x.toFixed(3) + ',' + arCenterOffset.y.toFixed(3) + ',' + arCenterOffset.z.toFixed(3) + ' halfH=' + arHalfHeight.toFixed(3));
                     }
 
                     /* Track last hit position for tap-to-place */
