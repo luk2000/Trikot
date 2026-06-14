@@ -357,6 +357,10 @@
     /** Auto-rotate speed in degrees per second (0 to disable) */
     const AUTO_ROTATE_SPEED = 15;
 
+    /** Gap between the object's bottom and the ground/shadow plane, as a fraction of
+     *  the object's half-height. >0 makes the splat appear to float above the ground. */
+    const FLOAT_GAP = 0.15;
+
     /** Show AR button (requires WebXR-capable device) */
     const SHOW_AR_BUTTON = true;
 
@@ -876,8 +880,9 @@
                         initialOrbit.yaw = orbit.yaw;
                         initialOrbit.pitch = orbit.pitch;
 
-                        /* Position ground plane and shadow at bottom of splat (under centroid) */
-                        const groundY = bboxCenter.y - he.y;
+                        /* Position ground plane and shadow below the splat bottom, with a
+                         * gap so the object appears to float above the ground (under centroid) */
+                        const groundY = bboxCenter.y - he.y - he.y * FLOAT_GAP;
                         ground.setPosition(center.x, groundY, center.z);
                         const planeSize = Math.max(he.x, he.z) * 2;
                         ground.setLocalScale(planeSize, 1, planeSize);
