@@ -518,7 +518,7 @@
             app.on('update', (dt) => {
                 acc += dt; frames++;
                 if (acc >= 0.5) {
-                    fpsEl.textContent = Math.round(frames / acc) + ' fps';
+                    fpsEl.textContent = rendererName + ' · ' + Math.round(frames / acc) + ' fps';
                     acc = 0; frames = 0;
                 }
             });
