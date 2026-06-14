@@ -938,11 +938,23 @@
                         dbgLog('DOM overlay NOT granted');
                     }
 
+                    /* Offset (world space) between bbox center and entity origin.
+                     * Constant for a fixed rotation+scale, so we can subtract it when
+                     * placing to map the bbox CENTER (not the origin) onto the hit point. */
+                    const arCenterOffset = new pc.Vec3();
+
                     /* Show splat immediately in front of camera */
                     if (currentSplatEntity) {
                         currentSplatEntity.setPosition(0, 0, -1);
                         currentSplatEntity.setEulerAngles(180, 0, 0);
                         currentSplatEntity.enabled = true;
+
+                        const arAabb = currentSplatEntity.gsplat && currentSplatEntity.gsplat.instance
+                            ? currentSplatEntity.gsplat.instance.meshInstance.aabb : null;
+                        if (arAabb) {
+                            arCenterOffset.copy(arAabb.center).sub(currentSplatEntity.getPosition());
+                            dbgLog('AR center offset: ' + arCenterOffset.x.toFixed(3) + ',' + arCenterOffset.y.toFixed(3) + ',' + arCenterOffset.z.toFixed(3));
+                        }
                     }
 
                     /* Track last hit position for tap-to-place */
@@ -971,9 +983,14 @@
                                     reticle.setPosition(position.x, position.y + 0.005, position.z);
                                     if (!reticle.enabled && !placed) reticle.enabled = true;
                                     if (!placed) {
-                                        /* Move object to follow surface in real-time until placed */
+                                        /* Move object to follow surface in real-time until placed.
+                                         * Subtract arCenterOffset so the bbox CENTER lands on the hit point. */
                                         if (currentSplatEntity) {
-                                            currentSplatEntity.setPosition(position.x, position.y, position.z);
+                                            currentSplatEntity.setPosition(
+                                                position.x - arCenterOffset.x,
+                                                position.y - arCenterOffset.y,
+                                                position.z - arCenterOffset.z
+                                            );
                                         }
                                     }
                                 });
