@@ -939,9 +939,11 @@
                     }
 
                     /* Offset (world space) between bbox center and entity origin.
-                     * Constant for a fixed rotation+scale, so we can subtract it when
-                     * placing to map the bbox CENTER (not the origin) onto the hit point. */
+                     * Constant for a fixed rotation+scale. We subtract X/Z to center the
+                     * object horizontally on the hit point, and use arHalfHeight to put the
+                     * bbox BOTTOM edge on the floor so the object STANDS on the point. */
                     const arCenterOffset = new pc.Vec3();
+                    let arHalfHeight = 0;
 
                     /* Show splat immediately in front of camera */
                     if (currentSplatEntity) {
@@ -953,7 +955,8 @@
                             ? currentSplatEntity.gsplat.instance.meshInstance.aabb : null;
                         if (arAabb) {
                             arCenterOffset.copy(arAabb.center).sub(currentSplatEntity.getPosition());
-                            dbgLog('AR center offset: ' + arCenterOffset.x.toFixed(3) + ',' + arCenterOffset.y.toFixed(3) + ',' + arCenterOffset.z.toFixed(3));
+                            arHalfHeight = arAabb.halfExtents.y;
+                            dbgLog('AR offset: ' + arCenterOffset.x.toFixed(3) + ',' + arCenterOffset.y.toFixed(3) + ',' + arCenterOffset.z.toFixed(3) + ' halfH=' + arHalfHeight.toFixed(3));
                         }
                     }
 
@@ -984,11 +987,12 @@
                                     if (!reticle.enabled && !placed) reticle.enabled = true;
                                     if (!placed) {
                                         /* Move object to follow surface in real-time until placed.
-                                         * Subtract arCenterOffset so the bbox CENTER lands on the hit point. */
+                                         * X/Z: center horizontally on the hit point.
+                                         * Y: put bbox BOTTOM on the floor so the object stands on it. */
                                         if (currentSplatEntity) {
                                             currentSplatEntity.setPosition(
                                                 position.x - arCenterOffset.x,
-                                                position.y - arCenterOffset.y,
+                                                position.y - arCenterOffset.y + arHalfHeight,
                                                 position.z - arCenterOffset.z
                                             );
                                         }
