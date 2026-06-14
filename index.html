@@ -22,6 +22,22 @@
             z-index: 1;
         }
 
+        /* Unobtrusive FPS counter */
+        #fps {
+            position: fixed;
+            top: 8px;
+            right: 10px;
+            z-index: 60;
+            font: 600 11px/1.4 system-ui, -apple-system, sans-serif;
+            color: rgba(0, 0, 0, 0.4);
+            background: rgba(255, 255, 255, 0.35);
+            padding: 2px 7px;
+            border-radius: 6px;
+            pointer-events: none;
+            user-select: none;
+            display: none;
+        }
+
         /* Optional background logo (watermark) behind the splat */
         #bg-logo {
             position: fixed;
@@ -250,6 +266,7 @@
 </head>
 <body>
     <div id="bg-logo"></div>
+    <div id="fps">– fps</div>
     <canvas id="app-canvas"></canvas>
 
     <!-- Loading Screen -->
@@ -384,6 +401,9 @@
      *  the object's half-height. >0 makes the splat appear to float above the ground. */
     const FLOAT_GAP = 0.15;
 
+    /** Show a small, unobtrusive FPS counter in the top-right corner */
+    const SHOW_FPS = true;
+
     /** Show AR button (requires WebXR-capable device) */
     const SHOW_AR_BUTTON = true;
 
@@ -489,6 +509,20 @@
         app.start();
 
         window.addEventListener('resize', () => app.resizeCanvas());
+
+        /* ── Unobtrusive FPS counter (smoothed, updated ~2x/sec) ── */
+        if (SHOW_FPS) {
+            const fpsEl = document.getElementById('fps');
+            fpsEl.style.display = 'block';
+            let acc = 0, frames = 0;
+            app.on('update', (dt) => {
+                acc += dt; frames++;
+                if (acc >= 0.5) {
+                    fpsEl.textContent = Math.round(frames / acc) + ' fps';
+                    acc = 0; frames = 0;
+                }
+            });
+        }
 
         /* ── Camera entity ── */
         const camera = new pc.Entity('camera');
