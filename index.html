@@ -851,7 +851,7 @@
                         /* Position ground plane and shadow at bottom of splat */
                         const groundY = center.y - halfExtents.y;
                         ground.setPosition(center.x, groundY, center.z);
-                        const planeSize = Math.max(halfExtents.x, halfExtents.z) * 4;
+                        const planeSize = Math.max(halfExtents.x, halfExtents.z) * 2;
                         ground.setLocalScale(planeSize, 1, planeSize);
 
                         shadow.setPosition(center.x, groundY + 0.001, center.z);
