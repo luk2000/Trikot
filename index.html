@@ -553,6 +553,15 @@
         shadow.enabled = false;
         app.root.addChild(shadow);
 
+        /* Render ground & shadow in a dedicated layer composited BEFORE the World layer,
+         * so they are always drawn behind the (transparent) gaussian splat. Otherwise
+         * per-object transparency sorting can flip the plane in front of the splat. */
+        const backdropLayer = new pc.Layer({ name: 'GroundBackdrop' });
+        app.scene.layers.insert(backdropLayer, 0);
+        camera.camera.layers = [backdropLayer.id].concat(camera.camera.layers);
+        ground.render.layers = [backdropLayer.id];
+        shadow.render.layers = [backdropLayer.id];
+
         /* Toggle shadow */
         shadowBtn.addEventListener('click', () => {
             shadow.enabled = !shadow.enabled;
