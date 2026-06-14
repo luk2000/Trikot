@@ -298,6 +298,20 @@
     window.onerror = (m,s,l,c,e) => dbgLog('ERR: ' + m);
     window.addEventListener('unhandledrejection', e => dbgLog('REJECT: ' + e.reason));
 
+    /* Small on-screen badge showing the active renderer (WebGPU vs WebGL2).
+     * Visible on mobile without DevTools; auto-hides after a few seconds. */
+    function showRendererBadge(name) {
+        const el = document.createElement('div');
+        el.textContent = 'Renderer: ' + name;
+        el.style.cssText = 'position:fixed;top:8px;left:8px;z-index:9999;'
+            + 'font:600 12px/1.4 system-ui,sans-serif;color:#fff;'
+            + 'background:rgba(0,0,0,0.7);padding:4px 8px;border-radius:6px;'
+            + 'pointer-events:none;transition:opacity 0.6s;opacity:1;';
+        document.body.appendChild(el);
+        setTimeout(() => { el.style.opacity = '0'; }, 5000);
+        setTimeout(() => { el.remove(); }, 5800);
+    }
+
     /* Global tap/click detection for debug */
     window.addEventListener('touchstart', (e) => dbgLog('TOUCH START on: ' + e.target.tagName + '#' + (e.target.id || '')), true);
     window.addEventListener('touchend', (e) => dbgLog('TOUCH END on: ' + e.target.tagName + '#' + (e.target.id || '')), true);
@@ -305,7 +319,7 @@
     </script>
 
     <!-- PlayCanvas Engine -->
-    <script src="https://cdn.jsdelivr.net/npm/playcanvas@2.17.0/build/playcanvas.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/playcanvas@2.19.7/build/playcanvas.js"></script>
 
     <script>
     /* ================================================================
@@ -372,15 +386,45 @@
         const shadowBtn = document.getElementById('shadow-btn');
         const arBtn    = document.getElementById('ar-btn');
 
-        /* ── Create PlayCanvas application ── */
-        const app = new pc.Application(canvas, {
-            graphicsDeviceOptions: {
-                alpha: TRANSPARENT_BG,
-                antialias: true
-            },
-            mouse: new pc.Mouse(canvas),
-            touch: 'ontouchstart' in window ? new pc.TouchDevice(canvas) : null
-        });
+        /* ── Create graphics device: prefer WebGPU, fall back to WebGL2 ──
+         * (Replaces the legacy `new pc.Application()` which is WebGL2-only.)
+         * No glslang/twgsl URLs needed: we use only engine built-in shaders. */
+        let device;
+        try {
+            device = await pc.createGraphicsDevice(canvas, {
+                deviceTypes: [pc.DEVICETYPE_WEBGPU, pc.DEVICETYPE_WEBGL2],
+                antialias: true,
+                alpha: TRANSPARENT_BG
+            });
+        } catch (e) {
+            console.error('[Renderer] createGraphicsDevice failed:', e);
+            showError('Could not initialize the graphics device (WebGPU/WebGL2).');
+            return;
+        }
+
+        const rendererName = device.isWebGPU ? 'WebGPU' : (device.isWebGL2 ? 'WebGL2' : (device.deviceType || 'unknown'));
+        console.log('[Renderer] Active graphics backend: ' + rendererName, device);
+        dbgLog('Renderer: ' + rendererName);
+        showRendererBadge(rendererName);
+
+        /* ── Build the application around the chosen device (AppBase + AppOptions) ── */
+        const createOptions = new pc.AppOptions();
+        createOptions.graphicsDevice = device;
+        createOptions.mouse = new pc.Mouse(canvas);
+        createOptions.touch = 'ontouchstart' in window ? new pc.TouchDevice(canvas) : null;
+        createOptions.xr = pc.XrManager; /* required for AR */
+        createOptions.componentSystems = [
+            pc.RenderComponentSystem,
+            pc.CameraComponentSystem,
+            pc.LightComponentSystem,
+            pc.GSplatComponentSystem
+        ];
+        createOptions.resourceHandlers = [
+            pc.GSplatHandler
+        ];
+
+        const app = new pc.AppBase(canvas);
+        app.init(createOptions);
 
         app.setCanvasFillMode(pc.FILLMODE_FILL_WINDOW);
         app.setCanvasResolution(pc.RESOLUTION_AUTO);
